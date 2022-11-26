@@ -1,4 +1,5 @@
-﻿using Crossport.WebSockets;
+﻿using Crossport.Signalling;
+using Crossport.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Crossport.Controllers
@@ -20,7 +21,7 @@ namespace Crossport.Controllers
             {
                 using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
                 var tsc = new TaskCompletionSource();
-                var session = new WebRtcSession(webSocket, HostShutdown,tsc);
+                var session = new WebRtcPeer(webSocket,tsc, HostShutdown);
                 
                 SignallingHandler.Add(session);
                 await session.ListenAsync();

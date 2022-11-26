@@ -2,5 +2,5 @@
 
 public record Offer(string Sdp,long Datetime,bool Polite)
 {
-    public bool Polite { get; set; } = Polite;
+    //public bool Polite { get; set; } = Polite;
 }

@@ -5,15 +5,15 @@ using Microsoft.AspNetCore.Mvc.Routing;
 
 public sealed class HttpConnectAttribute : HttpMethodAttribute
 {
-    private static readonly IEnumerable<string> _supportedMethods = new[] { "CONNECT" };
+    private static readonly IEnumerable<string> SupportedMethods = new[] { "CONNECT" };
 
     public HttpConnectAttribute()
-        : base(_supportedMethods)
+        : base(SupportedMethods)
     {
     }
 
     public HttpConnectAttribute(string template)
-        : base(_supportedMethods, template)
+        : base(SupportedMethods, template)
     {
     }
 }

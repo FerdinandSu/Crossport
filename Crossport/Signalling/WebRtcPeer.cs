@@ -1,17 +1,33 @@
 ﻿using System.Net.WebSockets;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 
-namespace Crossport.WebSockets;
+namespace Crossport.Signalling;
 
-public class WebRtcSession
+public class WebRtcPeer
 {
+    protected bool Equals(WebRtcPeer other)
+    {
+        return Id.Equals(other.Id);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        return obj.GetType() == this.GetType() && Equals((WebRtcPeer)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        return Id.GetHashCode();
+    }
+
     private readonly WebSocket _webSocket;
     private readonly CancellationToken _cancellationToken;
     private readonly TaskCompletionSource _completionSource;
 
-    public delegate Task ConnectEvent(WebRtcSession sender, string connectionId);
-    public delegate Task ExchangeEvent(WebRtcSession sender, string from, string to, JsonElement data);
+    public delegate Task ConnectEvent(WebRtcPeer sender, string connectionId);
+    public delegate Task ExchangeEvent(WebRtcPeer sender, string from, string to, JsonElement data);
 
     public event ConnectEvent? Connect;
     public event ConnectEvent? Disconnect;
@@ -19,7 +35,7 @@ public class WebRtcSession
     public event ExchangeEvent? Answer;
     public event ExchangeEvent? Candidate;
     public Guid Id { get; } = Guid.NewGuid();
-    public WebRtcSession(WebSocket socket, CancellationToken cancellationToken, TaskCompletionSource completionSource)
+    public WebRtcPeer(WebSocket socket, TaskCompletionSource completionSource, CancellationToken cancellationToken)
     {
 
         _webSocket = socket;
@@ -86,10 +102,9 @@ public class WebRtcSession
 
     public async Task SendAsync<T>(T message)
     {
-        var token = _cancellationToken;
         await using var outputStream = new MemoryStream(ReceiveBufferSize);
         await JsonSerializer.SerializeAsync(outputStream, message, new JsonSerializerOptions(JsonSerializerDefaults.Web),
-            token);
+            _cancellationToken);
         var readBuffer = new byte[ReceiveBufferSize];
         var writeBuffer = new ArraySegment<byte>(readBuffer);
         if (outputStream.Length > ReceiveBufferSize)
@@ -105,15 +120,13 @@ public class WebRtcSession
         outputStream.Position = 0;
         for (; ; )
         {
-            var byteCountRead = await outputStream.ReadAsync(readBuffer, 0, ReceiveBufferSize, token);
+            var byteCountRead = await outputStream.ReadAsync(readBuffer, 0, ReceiveBufferSize, _cancellationToken);
             var atTail = outputStream.Position == outputStream.Length;
-            await _webSocket.SendAsync(writeBuffer[..byteCountRead], WebSocketMessageType.Text,atTail,
-                token);
+            await _webSocket.SendAsync(writeBuffer[..byteCountRead], WebSocketMessageType.Text, atTail,
+                _cancellationToken);
             if (atTail) break;
         }
     }
-
-    private static string ExportJsonString(object? obj) => obj?.ToString() ?? "";
     private async Task ReceiveResponse(Stream inputStream)
     {
 
@@ -141,4 +154,6 @@ public class WebRtcSession
                 throw new ArgumentException($"Type {type} is not supported by signalling.", nameof(type));
         }
     }
+    public static bool operator ==(WebRtcPeer? left, WebRtcPeer? right) => Equals(left, right);
+    public static bool operator !=(WebRtcPeer? left, WebRtcPeer? right) => !(left == right);
 }
