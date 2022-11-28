@@ -1,3 +1,4 @@
+using Crossport.Signalling;
 using Crossport.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +19,7 @@ app.UseAuthorization();
 // <snippet_UseWebSockets>
 var webSocketOptions = new WebSocketOptions
 {
-    KeepAliveInterval = TimeSpan.FromSeconds(30)
+    KeepAliveInterval = TimeSpan.FromSeconds(1),
 };
 
 app.UseWebSockets(webSocketOptions);

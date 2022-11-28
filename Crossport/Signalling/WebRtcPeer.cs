@@ -75,9 +75,10 @@ public class WebRtcPeer
                         if (receiveResult.MessageType != WebSocketMessageType.Close)
                             outputStream.Write(buffer, 0, receiveResult.Count);
                     }
-                    catch (Exception e)
+                    catch (WebSocketException)
                     {
-                        Console.WriteLine(e);
+                        // Exit without handshake
+                        _completionSource.SetResult();
                         return;
                     }
 

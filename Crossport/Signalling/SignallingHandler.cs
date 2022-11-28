@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Net.WebSockets;
+﻿using System.Collections.Concurrent;
 using System.Text.Json;
-using Crossport.Signalling;
+using Crossport.WebSockets;
 
-namespace Crossport.WebSockets;
+namespace Crossport.Signalling;
 
 public class SignallingHandler
 {
@@ -19,7 +16,7 @@ public class SignallingHandler
     private readonly ConcurrentDictionary<WebRtcPeer, HashSet<string>> _clients = new();
     private readonly ConcurrentDictionary<string, (WebRtcPeer?, WebRtcPeer?)> _connectionPairs = new();
 
-    public bool IsPrivate { get; set; } = true;
+    public bool IsPrivate { get; set; } = false;
     public ISet<string> GetOrCreateConnectionIds(WebRtcPeer session)
     {
         if (_clients.ContainsKey(session)) return _clients[session];
@@ -50,7 +47,15 @@ public class SignallingHandler
                 var otherSessionWs = p0 == session ? p0 : p1;
                 if (otherSessionWs is not null)
                 {
-                    await otherSessionWs.SendAsync(new { type= "disconnect", connectionId });
+                    try
+                    {
+                        await otherSessionWs.SendAsync(new { type = "disconnect", connectionId });
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Ctrl+C pressed
+                    }
+                    
                 }
             }
 
@@ -105,7 +110,7 @@ public class SignallingHandler
     {
         var connectionIds = _clients[ws];
         connectionIds.Remove(connectionId);
-
+        
         if (_connectionPairs.ContainsKey(connectionId))
         {
             var (p0, p1) = _connectionPairs[connectionId];
