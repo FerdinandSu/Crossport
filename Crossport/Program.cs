@@ -1,4 +1,5 @@
 using Crossport.Signalling;
+using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSingleton<SignallingHandler>();
+builder.Services.AddSingleton<ISignallingHandler,CrossportSignallingHandler>();
 
 var app = builder.Build();
 

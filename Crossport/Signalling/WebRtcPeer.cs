@@ -128,11 +128,9 @@ public class WebRtcPeer
             if (atTail) break;
         }
     }
-    private async Task ReceiveResponse(Stream inputStream)
-    {
 
-        var message = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(inputStream, new JsonSerializerOptions(JsonSerializerDefaults.Web), _cancellationToken);
-        if (message is null) return;
+    protected virtual async Task ReceiveResponse(Dictionary<string, object> message)
+    {
         var type = message.SafeGetString("type").ToLower();
         switch (type)
         {
@@ -154,6 +152,13 @@ public class WebRtcPeer
             default:
                 throw new ArgumentException($"Type {type} is not supported by signalling.", nameof(type));
         }
+    }
+    private async Task ReceiveResponse(Stream inputStream)
+    {
+
+        var message = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(inputStream, new JsonSerializerOptions(JsonSerializerDefaults.Web), _cancellationToken);
+        if (message is null) return;
+        await ReceiveResponse(message);
     }
     public static bool operator ==(WebRtcPeer? left, WebRtcPeer? right) => Equals(left, right);
     public static bool operator !=(WebRtcPeer? left, WebRtcPeer? right) => !(left == right);
