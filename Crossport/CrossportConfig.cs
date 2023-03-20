@@ -16,6 +16,4 @@ public record CrossportConfig
 
     public CrossportCharacter Character { get; set; }
     public bool AllowAnonymous { get; set; }
-
-
 }

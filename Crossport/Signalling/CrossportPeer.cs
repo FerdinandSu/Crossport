@@ -17,7 +17,12 @@ public class CrossportPeer : WebRtcPeer
         base(socket, completionSource, cancellationToken)
     {
     }
-
+    public CrossportPeer(WebSocket socket, CrossportConfig config, string clientId, TaskCompletionSource completionSource, CancellationToken cancellationToken) :
+        this(socket, completionSource, cancellationToken)
+    {
+        Config = config;
+        ClientId= clientId;
+    }
     protected override async Task ReceiveResponse(Dictionary<string, object> message)
     {
         var type = message.SafeGetString("type").ToLower();

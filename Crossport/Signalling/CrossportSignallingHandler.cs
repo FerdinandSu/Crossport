@@ -4,13 +4,11 @@ using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
 
 namespace Crossport.Signalling;
-public class CrossportSignallingHandler : BroadcastSignallingHandler, ISignallingHandler, IBroadcastDomain
+public class CrossportSignallingHandler : BroadcastSignallingHandler
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<BroadcastSignallingHandler> _logger;
     private readonly ConcurrentDictionary<string, CrossportPeer> _crossportClients = new();
-    //private readonly ConcurrentDictionary<WebRtcPeer, HashSet<string>> _clients = new();
-    //private readonly ConcurrentDictionary<string, (WebRtcPeer?, WebRtcPeer?)> _connectionPairs = new();
     public CrossportSignallingHandler(ILoggerFactory loggerFactory, ILogger<BroadcastSignallingHandler> logger) : base(logger)
     {
         _loggerFactory = loggerFactory;
@@ -19,12 +17,20 @@ public class CrossportSignallingHandler : BroadcastSignallingHandler, ISignallin
 
     private readonly ConcurrentDictionary<string, ApplicationSignallingHandler> _apps = new();
 
-    public override void Add(WebRtcPeer session)
+    public override async void Add(WebRtcPeer session)
     {
         Track(session);
-        if (session is CrossportPeer cp)
-            cp.Register += Register;
         _logger.LogDebug(EventId(SignallingEvents.WsConnect), "Anonymous WebRtcSession {id} is now Online", session.Id);
+        if (session is CrossportPeer cp)
+        {
+            cp.Register += Register;
+            if (cp.Config is not null && cp.ClientId is not null)
+            {
+                await Register(cp);
+            }
+        }
+
+
     }
 
     protected async Task Register(CrossportPeer sender)

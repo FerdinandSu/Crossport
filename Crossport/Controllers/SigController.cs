@@ -3,54 +3,73 @@ using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Crossport.Controllers
+namespace Crossport.Controllers;
+
+[Route("sig")]
+public class SigController : Controller
 {
-    public class SigController : Controller
+    private ISignallingHandler SignallingHandler { get; }
+    private CancellationToken HostShutdown { get; }
+    public SigController(ISignallingHandler signallingHandler, IHostApplicationLifetime applicationLifetime)
     {
-        private ISignallingHandler SignallingHandler { get; }
-        private CancellationToken HostShutdown { get; }
-        public SigController(ISignallingHandler signallingHandler,IHostApplicationLifetime applicationLifetime)
+        SignallingHandler = signallingHandler;
+        HostShutdown = applicationLifetime.ApplicationStopping;
+    }
+    [HttpGet("")]
+    [HttpConnect("")]
+    public async Task<IActionResult> Signalling()
+    {
+        return Redirect("ws://localhost/sig/ext");
+
+        if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            SignallingHandler = signallingHandler;
-            HostShutdown = applicationLifetime.ApplicationStopping;
+            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            var tsc = new TaskCompletionSource();
+            var session = new WebRtcPeer(webSocket, tsc, HostShutdown);
+
+            SignallingHandler.Add(session);
+            await session.ListenAsync();
+            await tsc.Task;
+            await SignallingHandler.Remove(session);
         }
-        [HttpGet("/sig")]
-        [HttpConnect("/sig")]
-        public async Task<IActionResult> Signalling()
+        else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+    }
+    [HttpGet("ext")]
+    [HttpConnect("ext")]
+    public async Task SignallingExtendedRegistering()
+    {
+        if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            return Redirect("ws://localhost/sig2");
+            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            var tsc = new TaskCompletionSource();
+            var session = new CrossportPeer(webSocket, tsc, HostShutdown);
 
-            if (HttpContext.WebSockets.IsWebSocketRequest)
-            {
-                using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-                var tsc = new TaskCompletionSource();
-                var session = new WebRtcPeer(webSocket,tsc, HostShutdown);
-                
-                SignallingHandler.Add(session);
-                await session.ListenAsync();
-                await tsc.Task;
-                await SignallingHandler.Remove(session);
-            }
-            else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-
+            SignallingHandler.Add(session);
+            await session.ListenAsync();
+            await tsc.Task;
+            await SignallingHandler.Remove(session);
         }
-        [HttpGet("/sig2")]
-        [HttpConnect("/sig2")]
-        public async Task Signalling2()
+        else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+    }
+    [HttpGet("inline/{app}/{component}/{id}")]
+    [HttpConnect("inline/{app}/{component}/{id}")]
+    public async Task SignallingInlineRegistering([FromRoute] string app, [FromRoute] string component, [FromRoute] string id)
+    {
+        if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            if (HttpContext.WebSockets.IsWebSocketRequest)
-            {
-                using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-                var tsc = new TaskCompletionSource();
-                var session = new CrossportPeer(webSocket, tsc, HostShutdown);
+            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            var tsc = new TaskCompletionSource();
+            var session = new CrossportPeer(webSocket,
+                new CrossportConfig { AllowAnonymous = false, Application = app, Component = component, Character = CrossportCharacter.MediaConsumer }, id, tsc, HostShutdown);
 
-                SignallingHandler.Add(session);
-                await session.ListenAsync();
-                await tsc.Task;
-                await SignallingHandler.Remove(session);
-            }
-            else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-
+            SignallingHandler.Add(session);
+            await session.ListenAsync();
+            await tsc.Task;
+            await SignallingHandler.Remove(session);
         }
+        else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
     }
 }
