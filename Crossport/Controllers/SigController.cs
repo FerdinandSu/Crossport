@@ -8,10 +8,12 @@ namespace Crossport.Controllers;
 [Route("sig")]
 public class SigController : Controller
 {
+    private readonly ILogger<SigController> _logger;
     private ISignallingHandler SignallingHandler { get; }
     private CancellationToken HostShutdown { get; }
-    public SigController(ISignallingHandler signallingHandler, IHostApplicationLifetime applicationLifetime)
+    public SigController(ISignallingHandler signallingHandler, IHostApplicationLifetime applicationLifetime,ILogger<SigController> logger)
     {
+        _logger = logger;
         SignallingHandler = signallingHandler;
         HostShutdown = applicationLifetime.ApplicationStopping;
     }
@@ -19,7 +21,10 @@ public class SigController : Controller
     [HttpConnect("")]
     public async Task<IActionResult> Signalling()
     {
-        return Redirect("ws://localhost/sig/ext");
+        var request = HttpContext.Request;
+        var redirect = $"{request.Scheme.Replace("http","ws")}://{request.Host}/sig/ext";
+        _logger.LogDebug("Redirect: {url}", redirect);
+        return Redirect(redirect);
 
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
