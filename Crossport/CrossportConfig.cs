@@ -1,12 +1,8 @@
-﻿namespace Crossport;
+﻿using Crossport.AppManaging;
 
-[Flags]
-public enum CrossportCharacter
-{
-    None = 0,
-    MediaConsumer = 1 << 0,
-    MediaProducer = 1 << 1,
-}
+namespace Crossport;
+
+
 [Serializable]
 public record CrossportConfig
 {
@@ -14,6 +10,5 @@ public record CrossportConfig
 
     public string Component { get; set; } = string.Empty;
 
-    public CrossportCharacter Character { get; set; }
-    public bool AllowAnonymous { get; set; }
+    public int Character { get; set; }
 }
