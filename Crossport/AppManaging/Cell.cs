@@ -4,15 +4,14 @@ namespace Crossport.AppManaging;
 
 public class Cell
 {
-    public ConcurrentDictionary<ContentConsumer, NonPeerConnection?> Consumers { get; } = new();
-    public ContentProvider? Provider { get; private set; }
-
-    public bool? IsFull
+    public Cell(ContentProvider provider)
     {
-        get
-        {
-            if (Provider == null) return null;
-            return Provider.Capacity > Consumers.Count;
-        }
+        Provider = provider;
     }
+
+    public ConcurrentDictionary<ContentConsumer, NonPeerConnection> Consumers { get; } = new();
+    public ContentProvider Provider { get; private set; }
+
+    public bool IsFull =>
+        Provider.Capacity > Consumers.Count;
 }

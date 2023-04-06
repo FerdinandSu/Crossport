@@ -91,6 +91,7 @@ public class WaitForWebSocketSignalingHandler : IDisposable, ISignalingHandler
 
     public async Task SendAsync<T>(T message)
     {
+        if (_webSocket.State != WebSocketState.Open) return;
         await using var outputStream = new MemoryStream(ReceiveBufferSize);
         await JsonSerializer.SerializeAsync(outputStream, message, new JsonSerializerOptions(JsonSerializerDefaults.Web),
             _cancellationToken);

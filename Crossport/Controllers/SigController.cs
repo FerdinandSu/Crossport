@@ -11,7 +11,7 @@ public class SigController : Controller
 {
     private readonly AppManager _appManager;
     private readonly IConfiguration _config;
-    private int RawConnectionLifetime => _config.GetSection("Crossport:ConnectionManagement").GetValue<int>("RawConnectionLifetime");
+    private int RawPeerLifetime => _config.GetSection("Crossport:ConnectionManagement").GetValue<int>("RawPeerLifetime");
     private readonly ILogger<SigController> _logger;
     private ISignallingHandler SignallingHandler { get; }
     private CancellationToken HostShutdown { get; }
@@ -94,12 +94,12 @@ public class SigController : Controller
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             var tsc = new TaskCompletionSource();
-            using var rawConnectionTtlSource = new CancellationTokenSource(RawConnectionLifetime);
+            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
             using var session = new WaitForWebSocketSignalingHandler(
                     await HttpContext.WebSockets.AcceptWebSocketAsync(),
                     new(r => r.SafeGetString("type").ToLower() == "register",
                         (sender, msg) => _appManager.RegisterOrRenew(sender, msg, false)
-                        , rawConnectionTtlSource.Token),
+                        , rawPeerTtlSource.Token),
                     tsc, HostShutdown
                     )
                 ;
@@ -110,7 +110,7 @@ public class SigController : Controller
         else
         {
             HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.");
+            await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", cancellationToken: HostShutdown);
         }
     }
 }
