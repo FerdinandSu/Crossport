@@ -4,12 +4,20 @@ using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
 using Serilog;
 using Serilog.Events;
+using Serilog.Templates;
 
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    //.MinimumLevel.Override("Microsoft", LogEventLevel.Information)
     .Enrich.FromLogContext()
-    //.WriteTo.Console()
+    //.WriteTo.Console(new ExpressionTemplate)
     .CreateBootstrapLogger(); // <-- Change this line!
+
+//
+//    "formatter": {
+//        "type": "Serilog.Templates.ExpressionTemplate, Serilog.Expressions",
+//        "template": "[{@t:HH:mm:ss} {@l:u3} {Coalesce(SourceContext, '<none>')}] {@m}\n{@x}"
+//    }
+//}
 
 var builder = WebApplication.CreateBuilder(args);
 

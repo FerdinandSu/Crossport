@@ -89,7 +89,7 @@ public abstract class Peer
     public async Task SendAsync(object message)
     {
         await _sendLock.WaitAsync();
-        while (!_sendQueue.Any())
+        while (_sendQueue.Any())
         {
             var oldMessage = _sendQueue.Peek();
             if (await Signaling.SendAsync(oldMessage))

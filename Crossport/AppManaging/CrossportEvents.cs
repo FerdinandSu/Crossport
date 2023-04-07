@@ -32,7 +32,7 @@ public static class CrossportEvents
     public static readonly EventId NpcIllSigNullMessage = new(650211, "Message Parsing Failed");
     public static readonly EventId NpcIllSigConsumerOfferToNonPending = new(650212, "Consumer Offer To Non-Pending Connection");
     public static readonly EventId NpcIllSigConsumerAnswerToNonRequested = new(650213, "Consumer Answer To Non-Requested Connection");
-    public static readonly EventId NpcIllSigConsumerAnswerToNullProvider = new(650214, "Consumer Answer To Null Provider");
+    public static readonly EventId NpcIllSigConsumerMessageToNullProvider = new(650214, "Consumer Message To Null Provider");
     public static readonly EventId NpcIllSigProviderOfferToNonAnswered = new(650215, "Provider Offered before Answered");
     public static readonly EventId NpcIllSigProviderAnswerToNonRequested = new(650216, "Provider Answer To Non-Requested Connection");
 }

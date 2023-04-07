@@ -42,5 +42,5 @@ public class Cell
     }
 
     public bool IsFull =>
-        Provider.Capacity > Consumers.Count;
+        Provider.Capacity <= Consumers.Count;
 }

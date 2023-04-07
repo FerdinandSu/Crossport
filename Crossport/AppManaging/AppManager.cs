@@ -98,7 +98,7 @@ public class AppManager
                 IllegalSignalingException.IllegalSignalingType.NullMessage => CrossportEvents.NpcIllSigNullMessage,
                 IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending => CrossportEvents.NpcIllSigConsumerOfferToNonPending,
                 IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested => CrossportEvents.NpcIllSigConsumerAnswerToNonRequested,
-                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNullProvider => CrossportEvents.NpcIllSigConsumerAnswerToNullProvider,
+                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider => CrossportEvents.NpcIllSigConsumerMessageToNullProvider,
                 IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered => CrossportEvents.NpcIllSigProviderOfferToNonAnswered,
                 IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested => CrossportEvents.NpcIllSigProviderAnswerToNonRequested,
                 _ => throw new ArgumentOutOfRangeException()

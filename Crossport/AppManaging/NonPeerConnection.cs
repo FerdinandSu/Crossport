@@ -41,7 +41,7 @@ public class IllegalSignalingException : Exception
         ConsumerOfferToNonPending = 1,
 
         ConsumerAnswerToNonRequested = 2,
-        ConsumerAnswerToNullProvider = 3,
+        ConsumerMessageToNullProvider = 3,
         //ConsumerRequestedConnection=4,
         //ProviderRequestedConnection =-4,
         ProviderOfferToNonAnswered = -1,
@@ -97,8 +97,6 @@ public class NonPeerConnection
     public ConnectionState State { get; private set; }
     private readonly string _consumerIndicatedId;
     public string Id { get; private set; }
-    private Offer? _cachedOffer;
-    private readonly Queue<CandidateRecord> _cachedCandidateRecords = new();
     public event ConnectionEventHandler? OnTimeout;
     public event ConnectionEventHandler? OnDestroyed;
     public event ConnectionEventHandler? OnStateChanged;
@@ -127,24 +125,13 @@ public class NonPeerConnection
 
     public async Task SetProvider(ContentProvider provider)
     {
-        if (HasProvider) { throw new ProviderAlreadySetException($"Connection {Id} already have Provider!",this); }
+        if (HasProvider) { throw new ProviderAlreadySetException($"Connection {Id} already have Provider!", this); }
 
         await _setProviderLock.WaitAsync();
-        if(Provider != null) { return; }
+        if (Provider != null) { return; }
         Provider = provider;
         Id = $"{App.Application}:{App.Component}:{Provider.Id}@{Consumer.Id}";
-        if (_cachedOffer != null) { await SendConsumerOffer(_cachedOffer); }
-
-        foreach (var candidateRecord in _cachedCandidateRecords)
-        {
-            await Provider!.SendAsync(new
-            {
-                from = Id,
-                to = Provider.Id,
-                type = "candidate",
-                data = candidateRecord
-            });
-        }
+        await Consumer.SendAsync(new { type = "connect", connectionId = _consumerIndicatedId, polite = true });
         _setProviderLock.Release();
         Provider.OnOffer += Provider_OnOffer;
         Provider.OnCandidate += Provider_OnCandidate;
@@ -163,7 +150,7 @@ public class NonPeerConnection
         if (from != Id) return;
         if (State != ConnectionState.ConsumerRequested)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested,data);
+                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested, data);
 
         await Consumer.SendAsync(new
         {
@@ -232,7 +219,7 @@ public class NonPeerConnection
         Provider.OnAnswer -= Provider_OnAnswer;
         Provider.OnDisconnect -= Provider_OnDisconnect;
         Provider.OnPeerDead -= OnPeerDead;
-        
+
     }
     private async Task Consumer_OnAnswer(Peer sender, string from, string to, JsonElement data)
     {
@@ -241,7 +228,7 @@ public class NonPeerConnection
                 IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested, data);
         if (Provider is null)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNullProvider, data);
+                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider, data);
 
         await Provider.SendAsync(new
         {
@@ -265,21 +252,22 @@ public class NonPeerConnection
         var candidate = new CandidateRecord(message.Candidate, message.SdpMLineIndex, message.SdpMid.ToString(),
             JsNow);
         await _setProviderLock.WaitAsync();
-        if (HasProvider)
+        if (!HasProvider)
         {
-            await Provider!.SendAsync(new
-            {
-                from = Id,
-                to = Provider.Id,
-                type = "candidate",
-                data = candidate
-            });
-        }
-        else
-        {
-            _cachedCandidateRecords.Enqueue(candidate);
+            throw new IllegalSignalingException(this,
+                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider, data);
         }
         _setProviderLock.Release();
+        await Provider!.SendAsync(new
+        {
+            from = Id,
+            to = Provider.Id,
+            type = "candidate",
+            data = candidate
+        });
+
+
+
     }
 
     private async Task SendConsumerOffer(Offer offer)
@@ -316,15 +304,13 @@ public class NonPeerConnection
         }
         var newOffer = new Offer(Extract<OfferAnswerStruct>(data).Sdp, JsNow, false);
         await _setProviderLock.WaitAsync();
-        if (HasProvider)
+        if (!HasProvider)
         {
-            await SendConsumerOffer(newOffer);
-        }
-        else
-        {
-            _cachedOffer = newOffer;
+            throw new IllegalSignalingException(this,
+                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider, data);
         }
         _setProviderLock.Release();
+        await SendConsumerOffer(newOffer);
 
     }
 }
