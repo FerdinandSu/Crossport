@@ -1,30 +1,24 @@
-﻿using Crossport.Signalling;
-using System.Collections.Concurrent;
-using System.Net.WebSockets;
-using System.Text.Json;
-using System.Threading;
+﻿using System.Net.WebSockets;
 
-namespace Crossport.AppManaging;
+namespace Crossport.Core.Signalling;
 
 public class WaitForWebSocketSignalingHandler : WebSocketSignalingHandler
 {
-    public record WaitFor(Func<Dictionary<string, object>, bool> Predict, SignalingMessageHandler Handler, CancellationToken WaitForTimer);
-
     private readonly Queue<Dictionary<string, object>> _messageQueue;
-    private bool _waited = false;
     private readonly WaitFor _waitFor;
-
-    //public override event SignalingDisconnectHandler? OnDisconnect;
-    public override event SignalingMessageHandler? OnMessage;
+    private bool _waited;
 
     public WaitForWebSocketSignalingHandler(
         WebSocket socket, WaitFor waitFor,
         TaskCompletionSource completionSource,
-        CancellationToken cancellationToken):base(socket,completionSource,cancellationToken)
+        CancellationToken cancellationToken) : base(socket, completionSource, cancellationToken)
     {
         _waitFor = waitFor;
-        _messageQueue = new();
+        _messageQueue = new Queue<Dictionary<string, object>>();
     }
+
+    //public override event SignalingDisconnectHandler? OnDisconnect;
+    public override event SignalingMessageHandler? OnMessage;
 
     protected override async Task ReceiveResponse(Dictionary<string, object> message)
     {
@@ -41,13 +35,12 @@ public class WaitForWebSocketSignalingHandler : WebSocketSignalingHandler
                 await DisconnectAsync();
                 return;
             }
+
             if (predict(message))
             {
                 await handler(this, message);
                 foreach (var previousMessage in _messageQueue)
-                {
                     await (OnMessage?.Invoke(this, previousMessage) ?? Task.CompletedTask);
-                }
                 _waited = true;
             }
             else
@@ -55,7 +48,8 @@ public class WaitForWebSocketSignalingHandler : WebSocketSignalingHandler
                 _messageQueue.Enqueue(message);
             }
         }
-
     }
 
+    public record WaitFor(Func<Dictionary<string, object>, bool> Predict, SignalingMessageHandler Handler,
+        CancellationToken WaitForTimer);
 }

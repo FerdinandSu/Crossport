@@ -1,31 +1,36 @@
 ﻿using System.Collections.Concurrent;
-using System.Runtime.Serialization;
-using System.Text.Json;
+using Crossport.Core.Connecting;
+using Crossport.Core.Entities;
+using Crossport.Core.Signalling;
+using Crossport.Utils;
 
-namespace Crossport.AppManaging;
+namespace Crossport.Core;
 
 public record AppInfo(string Application, string Component)
 {
-    public AppInfo(CrossportConfig crossportConfig) : this(crossportConfig.Application, crossportConfig.Component) { }
+    public AppInfo(CrossportConfig crossportConfig) : this(crossportConfig.Application, crossportConfig.Component)
+    {
+    }
 }
+
 public class AppManager
 {
-
     private readonly ILogger<AppManager> _logger;
 
     public AppManager(ILogger<AppManager> logger)
     {
         _logger = logger;
     }
+
     private ConcurrentDictionary<AppInfo, AppComponent> AppComponents { get; } = new();
     private ConcurrentDictionary<Guid, Peer> Peers { get; } = new();
-    public async Task RegisterOrRenew(ISignalingHandler signaling, string connectionId, CrossportConfig? config, bool isCompatible)
+
+    public async Task RegisterOrRenew(ISignalingHandler signaling, string connectionId, CrossportConfig? config,
+        bool isCompatible)
     {
         if (!Guid.TryParse(connectionId, out var peerId))
-        {
             _logger.LogCrossport(CrossportEvents.PeerBadRegister, "Failed to parsing id for Peer {id}",
                 connectionId);
-        }
 
         var peerType = isCompatible ? "Compatible" : "Standard";
         if (Peers.TryGetValue(peerId, out var peer))
@@ -37,10 +42,10 @@ public class AppManager
 
             return;
         }
-        
+
         if (config is not null)
         {
-            var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i,OnGeneralConnectionEvent));
+            var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i, OnGeneralConnectionEvent));
             if (config.Capacity == 0)
             {
                 var consumer = new ContentConsumer(signaling, peerId, config, isCompatible);
@@ -52,32 +57,31 @@ public class AppManager
             else
             {
                 var provider = new ContentProvider(signaling, peerId, config, isCompatible);
-                _logger.LogCrossport(CrossportEvents.PeerCreated, "{type} provider peer {id} created successfully, capacity={cap}.",
+                _logger.LogCrossport(CrossportEvents.PeerCreated,
+                    "{type} provider peer {id} created successfully, capacity={cap}.",
                     peerType, connectionId, config.Capacity);
                 try
                 {
-                    var cell=await app.Register(provider);
+                    var cell = await app.Register(provider);
                     Peers[peerId] = provider;
-                    _logger.LogCrossport(CrossportEvents.CellCreated, "Cell provided by peer {id} created successfully, {cnt} consumers are in.",
-                         connectionId, cell.Consumers.Count);
+                    _logger.LogCrossport(CrossportEvents.CellCreated,
+                        "Cell provided by peer {id} created successfully, {cnt} consumers are in.",
+                        connectionId, cell.Consumers.Count);
                 }
                 catch (ProviderAlreadySetException e)
                 {
                     _logger.LogCrossport(CrossportEvents.NpcProviderAlreadySet,
                         "Fatal: {eMessage} when setting provider", e.Message);
                 }
-
-                
             }
-
         }
         else
         {
             _logger.LogCrossport(CrossportEvents.PeerBadRegister, "Failed to parsing register data for Peer {id}",
                 connectionId);
         }
-        Peers[peerId].OnPeerDead += OnPeerDead;
 
+        Peers[peerId].OnPeerDead += OnPeerDead;
     }
 
     public async Task ListenExceptions(Func<Task> run)
@@ -96,24 +100,31 @@ public class AppManager
             var eid = e.Type switch
             {
                 IllegalSignalingException.IllegalSignalingType.NullMessage => CrossportEvents.NpcIllSigNullMessage,
-                IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending => CrossportEvents.NpcIllSigConsumerOfferToNonPending,
-                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested => CrossportEvents.NpcIllSigConsumerAnswerToNonRequested,
-                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider => CrossportEvents.NpcIllSigConsumerMessageToNullProvider,
-                IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered => CrossportEvents.NpcIllSigProviderOfferToNonAnswered,
-                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested => CrossportEvents.NpcIllSigProviderAnswerToNonRequested,
+                IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending => CrossportEvents
+                    .NpcIllSigConsumerOfferToNonPending,
+                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested => CrossportEvents
+                    .NpcIllSigConsumerAnswerToNonRequested,
+                IllegalSignalingException.IllegalSignalingType.ConsumerMessageToNullProvider => CrossportEvents
+                    .NpcIllSigConsumerMessageToNullProvider,
+                IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered => CrossportEvents
+                    .NpcIllSigProviderOfferToNonAnswered,
+                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested => CrossportEvents
+                    .NpcIllSigProviderAnswerToNonRequested,
                 _ => throw new ArgumentOutOfRangeException()
             };
             _logger.LogCrossport(eid, "Npc {id} Illegal Signalling ({type}): {message}", e.Connection.Id, e.Type,
                 e.SignallingData.ToString());
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             _logger.LogError(CrossportEvents.CrossportUndefinedException, e,
                 "Undefined Exception caught by AppManager Listener: {emessage}", e.Message);
         }
     }
+
     private Task OnGeneralConnectionEvent(NonPeerConnection connection, ConnectionEventType eventType)
-        => Task.Run(() =>
+    {
+        return Task.Run(() =>
         {
             switch (eventType)
             {
@@ -145,8 +156,11 @@ public class AppManager
                     throw new ArgumentOutOfRangeException(nameof(eventType), eventType, null);
             }
         });
+    }
+
     private void OnPeerDead(Peer obj)
     {
-        _logger.LogCrossport(CrossportEvents.PeerDead, "Peer {id} is dead after {ttl} ms waiting for reconnection.", obj.Id, Peer.LostPeerLifetime);
+        _logger.LogCrossport(CrossportEvents.PeerDead, "Peer {id} is dead after {ttl} ms waiting for reconnection.",
+            obj.Id, Peer.LostPeerLifetime);
     }
 }

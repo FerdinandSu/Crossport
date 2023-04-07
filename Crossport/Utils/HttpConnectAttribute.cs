@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc.Routing;
 
-namespace Crossport.WebSockets;
-using Microsoft.AspNetCore.Mvc.Routing;
+namespace Crossport.Utils;
 
 public sealed class HttpConnectAttribute : HttpMethodAttribute
 {

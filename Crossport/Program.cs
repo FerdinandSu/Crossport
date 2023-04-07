@@ -1,23 +1,10 @@
-using Crossport.AppManaging;
-using Crossport.Signalling;
-using Crossport.Signalling.Prototype;
-using Crossport.WebSockets;
+using Crossport.Core;
+using Crossport.Core.Connecting;
 using Serilog;
-using Serilog.Events;
-using Serilog.Templates;
 
 Log.Logger = new LoggerConfiguration()
-    //.MinimumLevel.Override("Microsoft", LogEventLevel.Information)
     .Enrich.FromLogContext()
-    //.WriteTo.Console(new ExpressionTemplate)
     .CreateBootstrapLogger(); // <-- Change this line!
-
-//
-//    "formatter": {
-//        "type": "Serilog.Templates.ExpressionTemplate, Serilog.Expressions",
-//        "template": "[{@t:HH:mm:ss} {@l:u3} {Coalesce(SourceContext, '<none>')}] {@m}\n{@x}"
-//    }
-//}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,12 +28,14 @@ app.UseAuthorization();
 // <snippet_UseWebSockets>
 var webSocketOptions = new WebSocketOptions
 {
-    KeepAliveInterval = TimeSpan.FromSeconds(1),
+    KeepAliveInterval = TimeSpan.FromSeconds(1)
 };
 
-Peer.LostPeerLifetime=builder.Configuration.GetSection("Crossport:ConnectionManagement").GetValue<int>(nameof(Peer.LostPeerLifetime));
-NonPeerConnection.OfferedConnectionLifetime= builder.Configuration.GetSection("Crossport:ConnectionManagement").GetValue<int>(
-    nameof(NonPeerConnection.OfferedConnectionLifetime));
+Peer.LostPeerLifetime = builder.Configuration.GetSection("Crossport:ConnectionManagement")
+    .GetValue<int>(nameof(Peer.LostPeerLifetime));
+NonPeerConnection.OfferedConnectionLifetime = builder.Configuration.GetSection("Crossport:ConnectionManagement")
+    .GetValue<int>(
+        nameof(NonPeerConnection.OfferedConnectionLifetime));
 
 app.UseWebSockets(webSocketOptions);
 // </snippet_UseWebSockets>
@@ -55,7 +44,6 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapControllers();
-
 
 
 app.Run();
