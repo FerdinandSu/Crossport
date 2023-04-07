@@ -6,5 +6,6 @@ public interface ISignalingHandler
 {
     event SignalingDisconnectHandler OnDisconnect;
     event SignalingMessageHandler? OnMessage;
-    Task SendAsync<T>(T message);
+    Task<bool> SendAsync<T>(T message);
+    Task DisconnectAsync();
 }

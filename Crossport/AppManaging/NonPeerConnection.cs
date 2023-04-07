@@ -20,30 +20,11 @@ public enum ConnectionState
 [Serializable]
 public class ProviderAlreadySetException : Exception
 {
-    //
-    // For guidelines regarding the creation of new exception types, see
-    //    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/cpgenref/html/cpconerrorraisinghandlingguidelines.asp
-    // and
-    //    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dncscol/html/csharp07192001.asp
-    //
-
-    public ProviderAlreadySetException()
-    {
-    }
 
     public ProviderAlreadySetException(string message) : base(message)
     {
     }
 
-    public ProviderAlreadySetException(string message, Exception inner) : base(message, inner)
-    {
-    }
-
-    protected ProviderAlreadySetException(
-        SerializationInfo info,
-        StreamingContext context) : base(info, context)
-    {
-    }
 }
 [Serializable]
 public class IllegalSignalingException : Exception
@@ -81,7 +62,9 @@ public class IllegalSignalingException : Exception
 }
 
 public delegate Task ConnectionEventHandler(NonPeerConnection sender);
-
+/// <summary>
+/// WebRTC Connection, NOT Websocket connection.
+/// </summary>
 public class NonPeerConnection
 {
     public static int OfferedConnectionLifetime = 5000;
@@ -123,15 +106,27 @@ public class NonPeerConnection
         consumer.OnOffer += Consumer_OnOffer;
         consumer.OnCandidate += Consumer_OnCandidate;
         consumer.OnAnswer += Consumer_OnAnswer;
-        consumer.OnDisconnect += (_, _) => Destroy();
-        consumer.OnPeerDead += async _ => await Destroy();
+        consumer.OnDisconnect += Consumer_OnDisconnect;
+        consumer.OnPeerDead += OnPeerDead;
         Id = $"{App.Application}:{App.Component}:NoProvider@{consumer.Id}";
     }
+
+    private async Task Consumer_OnDisconnect(Peer sender, string connectionId)
+    {
+        await Destroy();
+    }
+
+    private void OnPeerDead(Peer obj)
+    {
+        _ = Destroy();
+    }
+
     public async Task SetProvider(ContentProvider provider)
     {
         if (HasProvider) { throw new ProviderAlreadySetException($"Connection {Id} already have Provider!"); }
 
         await _setProviderLock.WaitAsync();
+        if(Provider != null) { return; }
         Provider = provider;
         Id = $"{App.Application}:{App.Component}:{Provider.Id}@{Consumer.Id}";
         if (_cachedOffer != null) { await SendConsumerOffer(_cachedOffer); }
@@ -150,11 +145,13 @@ public class NonPeerConnection
         Provider.OnOffer += Provider_OnOffer;
         Provider.OnCandidate += Provider_OnCandidate;
         Provider.OnAnswer += Provider_OnAnswer;
-        Provider.OnDisconnect += async (_, id) =>
-        {
-            if (id == Id) await Destroy();
-        };
-        Provider.OnPeerDead += async _ => await Destroy();
+        Provider.OnDisconnect += Provider_OnDisconnect;
+        Provider.OnPeerDead += OnPeerDead;
+    }
+
+    private async Task Provider_OnDisconnect(Peer sender, string connectionId)
+    {
+        if (connectionId == Id) await Destroy();
     }
 
     private async Task Provider_OnAnswer(Peer sender, string from, string to, JsonElement data)
@@ -220,6 +217,18 @@ public class NonPeerConnection
         await (OnDestroyed?.Invoke(this) ?? Task.CompletedTask);
         State = ConnectionState.Disconnected;
         _setProviderLock.Dispose();
+        Consumer.OnOffer -= Consumer_OnOffer;
+        Consumer.OnCandidate -= Consumer_OnCandidate;
+        Consumer.OnAnswer -= Consumer_OnAnswer;
+        Consumer.OnDisconnect -= Consumer_OnDisconnect;
+        Consumer.OnPeerDead -= OnPeerDead;
+        if (Provider == null) return;
+        Provider.OnOffer -= Provider_OnOffer;
+        Provider.OnCandidate -= Provider_OnCandidate;
+        Provider.OnAnswer -= Provider_OnAnswer;
+        Provider.OnDisconnect -= Provider_OnDisconnect;
+        Provider.OnPeerDead -= OnPeerDead;
+        
     }
     private async Task Consumer_OnAnswer(Peer sender, string from, string to, JsonElement data)
     {

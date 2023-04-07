@@ -2,15 +2,44 @@
 
 namespace Crossport.AppManaging;
 
+
+
+public delegate void ProviderDeadEventHandler(Cell sender);
+/// <summary>
+/// A broadcast domain with 1 Provider and N Consumers.
+/// Notice: Cell WILL NOT manages lifetime of connection and provider.
+/// </summary>
 public class Cell
 {
-    public Cell(ContentProvider provider)
+
+    public event ProviderDeadEventHandler? OnProviderDead;
+    public Cell(AppInfo app, ContentProvider provider)
     {
+        App = app;
         Provider = provider;
     }
 
-    public ConcurrentDictionary<ContentConsumer, NonPeerConnection> Consumers { get; } = new();
-    public ContentProvider Provider { get; private set; }
+    public Dictionary<ContentConsumer, NonPeerConnection> Consumers { get; } = new();
+    private AppInfo App { get; }
+    public ContentProvider Provider { get; }
+
+    public async Task Connect(ContentConsumer consumer, NonPeerConnection connection)
+    {
+        
+        connection.OnDestroyed += Connection_OnDestroyed;
+        Consumers[consumer] = connection;
+        await connection.SetProvider(Provider);
+    }
+
+
+
+    private async Task Connection_OnDestroyed(NonPeerConnection sender)
+    {
+        sender.OnDestroyed -= Connection_OnDestroyed;
+        Consumers.Remove(sender.Consumer);
+        if (Provider.Status == PeerStatus.Dead)
+            await (OnProviderDead?.Invoke(this) ?? Task.CompletedTask);
+    }
 
     public bool IsFull =>
         Provider.Capacity > Consumers.Count;

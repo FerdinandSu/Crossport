@@ -103,8 +103,9 @@ public class SigController : Controller
                     tsc, HostShutdown
                     )
                 ;
+            await _appManager.ListenExceptions(() => session.ListenAsync());
 
-            await session.ListenAsync();
+
             await tsc.Task;
         }
         else

@@ -19,7 +19,6 @@ public class WaitForWebSocketSignalingHandler : IDisposable, ISignalingHandler
     public event SignalingDisconnectHandler? OnDisconnect;
     public event SignalingMessageHandler? OnMessage;
 
-    public Guid Id { get; } = Guid.NewGuid();
     public WaitForWebSocketSignalingHandler(
         WebSocket socket, WaitFor waitFor,
         TaskCompletionSource completionSource,
@@ -89,9 +88,9 @@ public class WaitForWebSocketSignalingHandler : IDisposable, ISignalingHandler
         _completionSource.SetResult();
     }
 
-    public async Task SendAsync<T>(T message)
+    public async Task<bool> SendAsync<T>(T message)
     {
-        if (_webSocket.State != WebSocketState.Open) return;
+        if (_webSocket.State != WebSocketState.Open) return false;
         await using var outputStream = new MemoryStream(ReceiveBufferSize);
         await JsonSerializer.SerializeAsync(outputStream, message, new JsonSerializerOptions(JsonSerializerDefaults.Web),
             _cancellationToken);
@@ -116,6 +115,7 @@ public class WaitForWebSocketSignalingHandler : IDisposable, ISignalingHandler
                 _cancellationToken);
             if (atTail) break;
         }
+        return true;
     }
 
     protected virtual async Task ReceiveResponse(Dictionary<string, object> message)
