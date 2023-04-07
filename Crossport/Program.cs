@@ -2,15 +2,28 @@ using Crossport.AppManaging;
 using Crossport.Signalling;
 using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
+using Serilog;
+using Serilog.Events;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateBootstrapLogger(); // <-- Change this line!
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(), writeToProviders: true);
 // Add services to the container.
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSingleton<ISignallingHandler,CrossportSignallingHandler>();
+builder.Services.AddSingleton<AppManager>();
 
 var app = builder.Build();
 

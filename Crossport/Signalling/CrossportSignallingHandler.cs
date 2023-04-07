@@ -55,7 +55,7 @@ public class CrossportSignallingHandler : BroadcastSignallingHandler
         if (originPeer == null)
         {
             // 是否允许匿名域
-            if (!sender.Config.AllowAnonymous) await UnTrack(sender);
+            //if (!sender.Config.AllowAnonymous) await UnTrack(sender);
             var appHandler = _apps.GetOrAdd(appName, _ => new ApplicationSignallingHandler(_loggerFactory));
             appHandler.Track(sender);
             _logger.LogDebug(EventId(SignallingEvents.CpRegister), "New {mode} Crossport Session {id} ({app}/{component}/{cid}) is Registered.", sender.Mode, sender.Id, appName,
@@ -67,10 +67,10 @@ public class CrossportSignallingHandler : BroadcastSignallingHandler
             var oldHandler = _apps[originPeer.Config!.Application];
             var appHandler = _apps.GetOrAdd(appName, _ => new ApplicationSignallingHandler(_loggerFactory));
             await oldHandler.UnTrack(originPeer);
-            if (originPeer != sender || (originPeer.Config.AllowAnonymous && !sender.Config.AllowAnonymous))
+            if (originPeer != sender)// || (originPeer.Config.AllowAnonymous && !sender.Config.AllowAnonymous))
                 await UnTrack(sender);
-            if (!originPeer.Config.AllowAnonymous && sender.Config!.AllowAnonymous)
-                Track(sender);
+            //if (!originPeer.Config.AllowAnonymous && sender.Config!.AllowAnonymous)
+                //Track(sender);
             appHandler.Track(sender);
             _logger.LogDebug(EventId(SignallingEvents.CpRegister),"Crossport {mode} Session {id} ({app}/{component}/{cid}) Overrides {mode} Session {oldId} ({app}/{component}/{cid}).", sender.Id, appName,
                  sender.Mode, componentName, clientId, originPeer.Id, originPeer.Mode, originPeer.Config.Application, originPeer.Config.Component, originPeer.ClientId);

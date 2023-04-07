@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
+using Crossport.RtcEntities;
 using Crossport.WebSockets;
 
 namespace Crossport.Signalling.Prototype;

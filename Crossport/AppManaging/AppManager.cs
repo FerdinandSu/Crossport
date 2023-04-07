@@ -4,34 +4,6 @@ using System.Text.Json;
 
 namespace Crossport.AppManaging;
 
-[Serializable]
-public class BadRegisterException : Exception
-{
-    //
-    // For guidelines regarding the creation of new exception types, see
-    //    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/cpgenref/html/cpconerrorraisinghandlingguidelines.asp
-    // and
-    //    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dncscol/html/csharp07192001.asp
-    //
-
-    public BadRegisterException()
-    {
-    }
-
-    public BadRegisterException(string message) : base(message)
-    {
-    }
-
-    public BadRegisterException(string message, Exception inner) : base(message, inner)
-    {
-    }
-
-    protected BadRegisterException(
-        SerializationInfo info,
-        StreamingContext context) : base(info, context)
-    {
-    }
-}
 public record AppInfo(string Application, string Component)
 {
     public AppInfo(CrossportConfig crossportConfig) : this(crossportConfig.Application, crossportConfig.Component) { }
@@ -47,46 +19,65 @@ public class AppManager
     }
     private ConcurrentDictionary<AppInfo, AppComponent> AppComponents { get; } = new();
     private ConcurrentDictionary<Guid, Peer> Peers { get; } = new();
-    public async Task RegisterOrRenew(ISignalingHandler signaling, Dictionary<string, object> message, bool isCompatible)
+    public async Task RegisterOrRenew(ISignalingHandler signaling, string connectionId, CrossportConfig? config, bool isCompatible)
     {
-        var peerId = Guid.Parse(message.SafeGetString("id"));
+        if (!Guid.TryParse(connectionId, out var peerId))
+        {
+            _logger.LogCrossport(CrossportEvents.PeerBadRegister, "Failed to parsing id for Peer {id}",
+                connectionId);
+        }
+
+        var peerType = isCompatible ? "Compatible" : "Standard";
         if (Peers.TryGetValue(peerId, out var peer))
         {
             peer.Reconnect(signaling, isCompatible);
+
+            _logger.LogCrossport(CrossportEvents.PeerReconnected, "{type} peer {id} reconnected successfully.",
+                peerType, connectionId);
+
             return;
         }
-        var config = ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>();
+        
         if (config is not null)
         {
-            var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i));
+            var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i,OnGeneralConnectionEvent));
             if (config.Character == 0)
             {
                 var consumer = new ContentConsumer(signaling, peerId, config, isCompatible);
                 app.Register(consumer);
                 Peers[peerId] = consumer;
+                _logger.LogCrossport(CrossportEvents.PeerCreated, "{type} consumer {id} created successfully.",
+                    peerType, connectionId);
             }
             else
             {
                 var provider = new ContentProvider(signaling, peerId, config, isCompatible);
+                _logger.LogCrossport(CrossportEvents.PeerCreated, "{type} provider peer {id} created successfully, capacity={cap}.",
+                    peerType, connectionId, config.Character);
                 try
                 {
-                    await app.Register(provider);
+                    var cell=await app.Register(provider);
+                    Peers[peerId] = provider;
+                    _logger.LogCrossport(CrossportEvents.CellCreated, "Cell provided by peer {id} created successfully, {cnt} consumers are in.",
+                         connectionId, cell.Consumers.Count);
                 }
                 catch (ProviderAlreadySetException e)
                 {
-                    Console.WriteLine(e);
-                    throw;
+                    _logger.LogCrossport(CrossportEvents.NpcProviderAlreadySet,
+                        "Fatal: {eMessage} when setting provider", e.Message);
                 }
+
                 
-                Peers[peerId] = provider;
             }
+
         }
         else
         {
-            throw new BadRegisterException(message["data"].ToString() ?? "");
+            _logger.LogCrossport(CrossportEvents.PeerBadRegister, "Failed to parsing register data for Peer {id}",
+                connectionId);
         }
         Peers[peerId].OnPeerDead += OnPeerDead;
-        
+
     }
 
     public async Task ListenExceptions(Func<Task> run)
@@ -97,8 +88,28 @@ public class AppManager
         }
         catch (ProviderAlreadySetException e)
         {
-            Console.WriteLine(e);
-            throw;
+            _logger.LogCrossport(CrossportEvents.NpcProviderAlreadySet,
+                "Fatal: {eMessage} when setting provider", e.Message);
+        }
+        catch (IllegalSignalingException e)
+        {
+            var eid = e.Type switch
+            {
+                IllegalSignalingException.IllegalSignalingType.NullMessage => CrossportEvents.NpcIllSigNullMessage,
+                IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending => CrossportEvents.NpcIllSigConsumerOfferToNonPending,
+                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested => CrossportEvents.NpcIllSigConsumerAnswerToNonRequested,
+                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNullProvider => CrossportEvents.NpcIllSigConsumerAnswerToNullProvider,
+                IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered => CrossportEvents.NpcIllSigProviderOfferToNonAnswered,
+                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested => CrossportEvents.NpcIllSigProviderAnswerToNonRequested,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            _logger.LogCrossport(eid, "Npc {id} Illegal Signalling ({type}): {message}", e.Connection.Id, e.Type,
+                e.SignallingData.ToString());
+        }
+        catch(Exception e)
+        {
+            _logger.LogError(CrossportEvents.CrossportUndefinedException, e,
+                "Undefined Exception caught by AppManager Listener: {emessage}", e.Message);
         }
     }
     private Task OnGeneralConnectionEvent(NonPeerConnection connection, ConnectionEventType eventType)

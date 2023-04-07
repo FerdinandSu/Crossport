@@ -78,9 +78,9 @@ public class AppComponent
         await _connectionEventCallback(sender, ConnectionEventType.Destroyed);
     }
 
-    public async Task Register(ContentProvider provider)
+    public async Task<Cell> Register(ContentProvider provider)
     {
-        var cell = new Cell(_info, provider);
+        var cell = new Cell(provider);
         cell.OnProviderDead += Cell_OnProviderDead;
         while (!cell.IsFull && _queuedConsumers.TryDequeue(out var tuple))
         {
@@ -88,6 +88,7 @@ public class AppComponent
             await cell.Connect(consumer, connection);
         }
         _cells[provider]=cell;
+        return cell;
     }
 
     private void Cell_OnProviderDead(Cell sender)

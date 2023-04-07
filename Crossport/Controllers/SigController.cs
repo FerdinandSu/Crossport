@@ -3,6 +3,7 @@ using Crossport.Signalling;
 using Crossport.Signalling.Prototype;
 using Crossport.WebSockets;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Crossport.Controllers;
 
@@ -13,9 +14,8 @@ public class SigController : Controller
     private readonly IConfiguration _config;
     private int RawPeerLifetime => _config.GetSection("Crossport:ConnectionManagement").GetValue<int>("RawPeerLifetime");
     private readonly ILogger<SigController> _logger;
-    private ISignallingHandler SignallingHandler { get; }
     private CancellationToken HostShutdown { get; }
-    public SigController(ISignallingHandler signallingHandler, IHostApplicationLifetime applicationLifetime,
+    public SigController(IHostApplicationLifetime applicationLifetime,
         AppManager appManager,
         IConfiguration configuration,
         ILogger<SigController> logger)
@@ -23,67 +23,36 @@ public class SigController : Controller
         _appManager = appManager;
         _config = configuration;
         _logger = logger;
-        SignallingHandler = signallingHandler;
         HostShutdown = applicationLifetime.ApplicationStopping;
     }
-    //[HttpGet("")]
-    //[HttpConnect("")]
-    //public async Task<IActionResult> Signalling()
-    //{
-    //    var request = HttpContext.Request;
-    //    var redirect = $"{request.Scheme.Replace("http","ws")}://{request.Host}/sig/ext";
-    //    _logger.LogDebug("Redirect: {url}", redirect);
-    //    return Redirect(redirect);
 
-    //    if (HttpContext.WebSockets.IsWebSocketRequest)
-    //    {
-    //        using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-    //        var tsc = new TaskCompletionSource();
-    //        var session = new WebRtcPeer(webSocket, tsc, HostShutdown);
-
-    //        SignallingHandler.Add(session);
-    //        await session.ListenAsync();
-    //        await tsc.Task;
-    //        await SignallingHandler.Remove(session);
-    //    }
-    //    else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-
-    //}
-    [HttpGet("ext")]
-    [HttpConnect("ext")]
-    public async Task SignallingExtendedRegistering()
+    [HttpGet("{app}/{component}")]
+    [HttpConnect("{app}/{component}")]
+    public async Task CompatibleConnect([FromRoute] string app, [FromRoute] string component, [FromQuery] string id, [FromQuery] int capacity)
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
             var tsc = new TaskCompletionSource();
-            var session = new CrossportPeer(webSocket, tsc, HostShutdown);
+            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
+            using var session = new WebSocketSignalingHandler(
+                    await HttpContext.WebSockets.AcceptWebSocketAsync(), tsc, HostShutdown);
+            var config = new CrossportConfig
+            {
+                Application = app,
+                Component = component,
+                Character = capacity
+            };
+            await _appManager.RegisterOrRenew(session, id, config, true);
+            await _appManager.ListenExceptions(() => session.ListenAsync());
 
-            SignallingHandler.Add(session);
-            await session.ListenAsync();
+
             await tsc.Task;
-            await SignallingHandler.Remove(session);
         }
-        else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-
-    }
-    [HttpGet("inline/{app}/{component}/{id}")]
-    [HttpConnect("inline/{app}/{component}/{id}")]
-    public async Task SignallingInlineRegistering([FromRoute] string app, [FromRoute] string component, [FromRoute] string id)
-    {
-        if (HttpContext.WebSockets.IsWebSocketRequest)
+        else
         {
-            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-            var tsc = new TaskCompletionSource();
-            var session = new CrossportPeer(webSocket,
-                new CrossportConfig { AllowAnonymous = false, Application = app, Component = component, Character = CrossportCharacter.MediaConsumer }, id, tsc, HostShutdown);
-
-            SignallingHandler.Add(session);
-            await session.ListenAsync();
-            await tsc.Task;
-            await SignallingHandler.Remove(session);
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", cancellationToken: HostShutdown);
         }
-        else HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
 
     }
 
@@ -98,7 +67,8 @@ public class SigController : Controller
             using var session = new WaitForWebSocketSignalingHandler(
                     await HttpContext.WebSockets.AcceptWebSocketAsync(),
                     new(r => r.SafeGetString("type").ToLower() == "register",
-                        (sender, msg) => _appManager.RegisterOrRenew(sender, msg, false)
+                        (sender, message) => _appManager.RegisterOrRenew(sender, message.SafeGetString("id"),
+                            ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>(), false)
                         , rawPeerTtlSource.Token),
                     tsc, HostShutdown
                     )

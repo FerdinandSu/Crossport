@@ -13,14 +13,13 @@ public class Cell
 {
 
     public event ProviderDeadEventHandler? OnProviderDead;
-    public Cell(AppInfo app, ContentProvider provider)
+    public Cell( ContentProvider provider)
     {
-        App = app;
         Provider = provider;
     }
 
     public Dictionary<ContentConsumer, NonPeerConnection> Consumers { get; } = new();
-    private AppInfo App { get; }
+    
     public ContentProvider Provider { get; }
 
     public async Task Connect(ContentConsumer consumer, NonPeerConnection connection)
@@ -38,7 +37,8 @@ public class Cell
         sender.OnDestroyed -= Connection_OnDestroyed;
         Consumers.Remove(sender.Consumer);
         if (Provider.Status == PeerStatus.Dead)
-            await (OnProviderDead?.Invoke(this) ?? Task.CompletedTask);
+            OnProviderDead?.Invoke(this);
+        await Task.CompletedTask;
     }
 
     public bool IsFull =>

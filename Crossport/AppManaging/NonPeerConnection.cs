@@ -20,9 +20,11 @@ public enum ConnectionState
 [Serializable]
 public class ProviderAlreadySetException : Exception
 {
+    public NonPeerConnection Npc { get; }
 
-    public ProviderAlreadySetException(string message) : base(message)
+    public ProviderAlreadySetException(string message, NonPeerConnection npc) : base(message)
     {
+        Npc = npc;
     }
 
 }
@@ -31,18 +33,19 @@ public class IllegalSignalingException : Exception
 {
     public NonPeerConnection Connection { get; }
     public IllegalSignalingType Type { get; }
+    public JsonElement SignallingData { get; }
 
     public enum IllegalSignalingType
     {
         NullMessage = 0,
         ConsumerOfferToNonPending = 1,
 
-        ConsumerAnsweredToNonRequested = 2,
-        ConsumerAnsweredToNullProvider = 3,
+        ConsumerAnswerToNonRequested = 2,
+        ConsumerAnswerToNullProvider = 3,
         //ConsumerRequestedConnection=4,
         //ProviderRequestedConnection =-4,
         ProviderOfferToNonAnswered = -1,
-        ProviderAnsweredToNonRequested = -2,
+        ProviderAnswerToNonRequested = -2,
 
     }
     //
@@ -52,11 +55,12 @@ public class IllegalSignalingException : Exception
     //    http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dncscol/html/csharp07192001.asp
     //
 
-    public IllegalSignalingException(NonPeerConnection connection, IllegalSignalingType type)
+    public IllegalSignalingException(NonPeerConnection connection, IllegalSignalingType type, JsonElement data)
         : base($"Illegal Signaling on connection {connection.Id}: {Enum.GetName(type)}")
     {
         Connection = connection;
         Type = type;
+        SignallingData = data;
     }
 
 }
@@ -123,7 +127,7 @@ public class NonPeerConnection
 
     public async Task SetProvider(ContentProvider provider)
     {
-        if (HasProvider) { throw new ProviderAlreadySetException($"Connection {Id} already have Provider!"); }
+        if (HasProvider) { throw new ProviderAlreadySetException($"Connection {Id} already have Provider!",this); }
 
         await _setProviderLock.WaitAsync();
         if(Provider != null) { return; }
@@ -159,7 +163,7 @@ public class NonPeerConnection
         if (from != Id) return;
         if (State != ConnectionState.ConsumerRequested)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ProviderAnsweredToNonRequested);
+                IllegalSignalingException.IllegalSignalingType.ProviderAnswerToNonRequested,data);
 
         await Consumer.SendAsync(new
         {
@@ -196,7 +200,7 @@ public class NonPeerConnection
         if (from != Id) return;
         if (State != ConnectionState.ProviderAnswered)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered);
+                IllegalSignalingException.IllegalSignalingType.ProviderOfferToNonAnswered, data);
         var offer = new Offer(Extract<OfferAnswerStruct>(data).Sdp, JsNow, false);
         await Consumer.SendAsync(new { from = _consumerIndicatedId, to = Consumer.Id, type = "offer", data = offer });
         await ChangeState(ConnectionState.ProviderRequested);
@@ -234,10 +238,10 @@ public class NonPeerConnection
     {
         if (State is not ConnectionState.ProviderRequested)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ConsumerAnsweredToNonRequested);
+                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNonRequested, data);
         if (Provider is null)
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ConsumerAnsweredToNullProvider);
+                IllegalSignalingException.IllegalSignalingType.ConsumerAnswerToNullProvider, data);
 
         await Provider.SendAsync(new
         {
@@ -300,7 +304,7 @@ public class NonPeerConnection
     {
         var message = data.DeserializeWeb<T>();
         if (message is null) throw new IllegalSignalingException(this,
-            IllegalSignalingException.IllegalSignalingType.NullMessage);
+            IllegalSignalingException.IllegalSignalingType.NullMessage, data);
         return message;
     }
     private async Task Consumer_OnOffer(Peer sender, string from, string to, JsonElement data)
@@ -308,7 +312,7 @@ public class NonPeerConnection
         if (State is not ConnectionState.Pending or ConnectionState.ConsumerRequested)
         {
             throw new IllegalSignalingException(this,
-                IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending);
+                IllegalSignalingException.IllegalSignalingType.ConsumerOfferToNonPending, data);
         }
         var newOffer = new Offer(Extract<OfferAnswerStruct>(data).Sdp, JsNow, false);
         await _setProviderLock.WaitAsync();
