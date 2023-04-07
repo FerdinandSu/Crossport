@@ -10,9 +10,9 @@ public class WebSocketSignalingHandler : IDisposable, ISignalingHandler
     private readonly CancellationToken _cancellationToken;
     private readonly TaskCompletionSource _completionSource;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    public virtual event SignalingDisconnectHandler? OnDisconnect;
+    public event SignalingDisconnectHandler? OnDisconnect;
     public virtual event SignalingMessageHandler? OnMessage;
-    public Task ListenAsync() => Task.Run(ReceiveLoop, _cancellationToken);
+    public Task ListenAsync() => Task.Run((Func<Task?>)ReceiveLoop, _cancellationToken);
 
     public WebSocketSignalingHandler(
         WebSocket socket, 

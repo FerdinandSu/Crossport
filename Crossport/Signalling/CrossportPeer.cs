@@ -7,9 +7,8 @@ public class CrossportPeer : WebRtcPeer
 {
     public delegate Task RegisterEvent(CrossportPeer sender);
 
-    public string Mode => (Config?.AllowAnonymous ?? false)
-            ? "public"
-            : "private";
+    public string Mode => "public";
+            //: "private";
     public event RegisterEvent? Register;
     public CrossportConfig? Config{ get; private set; }
     public string? ClientId{ get; private set; }

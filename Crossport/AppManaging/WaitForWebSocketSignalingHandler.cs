@@ -14,7 +14,7 @@ public class WaitForWebSocketSignalingHandler : WebSocketSignalingHandler
     private bool _waited = false;
     private readonly WaitFor _waitFor;
 
-    public override event SignalingDisconnectHandler? OnDisconnect;
+    //public override event SignalingDisconnectHandler? OnDisconnect;
     public override event SignalingMessageHandler? OnMessage;
 
     public WaitForWebSocketSignalingHandler(

@@ -8,7 +8,7 @@ using Serilog.Events;
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
     .Enrich.FromLogContext()
-    .WriteTo.Console()
+    //.WriteTo.Console()
     .CreateBootstrapLogger(); // <-- Change this line!
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,8 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(), writeToProviders: true);
+    .Enrich.FromLogContext());
 // Add services to the container.
 
 builder.Services.AddControllers();
