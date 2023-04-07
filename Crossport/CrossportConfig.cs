@@ -1,6 +1,4 @@
-﻿using Crossport.AppManaging;
-
-namespace Crossport;
+﻿namespace Crossport;
 
 
 [Serializable]
@@ -10,5 +8,5 @@ public record CrossportConfig
 
     public string Component { get; set; } = string.Empty;
 
-    public int Character { get; set; }
+    public int Capacity { get; set; }
 }

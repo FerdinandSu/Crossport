@@ -82,7 +82,7 @@ public abstract class Peer
         Id = id;
         Signaling = signaling;
         Status = isCompatible ? PeerStatus.Compatible : PeerStatus.Standard;
-        Role = config.Character == 0 ? PeerRole.ContentConsumer : PeerRole.ContentProvider;
+        Role = config.Capacity == 0 ? PeerRole.ContentConsumer : PeerRole.ContentProvider;
         RegisterEvents();
     }
 

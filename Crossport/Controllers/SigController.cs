@@ -40,7 +40,7 @@ public class SigController : Controller
             {
                 Application = app,
                 Component = component,
-                Character = capacity
+                Capacity = capacity
             };
             await _appManager.RegisterOrRenew(session, id, config, true);
             await _appManager.ListenExceptions(() => session.ListenAsync());

@@ -41,7 +41,7 @@ public class AppManager
         if (config is not null)
         {
             var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i,OnGeneralConnectionEvent));
-            if (config.Character == 0)
+            if (config.Capacity == 0)
             {
                 var consumer = new ContentConsumer(signaling, peerId, config, isCompatible);
                 app.Register(consumer);
@@ -53,7 +53,7 @@ public class AppManager
             {
                 var provider = new ContentProvider(signaling, peerId, config, isCompatible);
                 _logger.LogCrossport(CrossportEvents.PeerCreated, "{type} provider peer {id} created successfully, capacity={cap}.",
-                    peerType, connectionId, config.Character);
+                    peerType, connectionId, config.Capacity);
                 try
                 {
                     var cell=await app.Register(provider);
