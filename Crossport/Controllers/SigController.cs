@@ -10,15 +10,18 @@ namespace Crossport.Controllers;
 [Route("sig")]
 public class SigController : Controller
 {
+    private readonly DiagnosticSignallingHandlerFactory _diagnosticFactory;
     private readonly AppManager _appManager;
     private readonly IConfiguration _config;
     private readonly ILogger<SigController> _logger;
 
     public SigController(IHostApplicationLifetime applicationLifetime,
+        DiagnosticSignallingHandlerFactory diagnosticFactory,
         AppManager appManager,
         IConfiguration configuration,
         ILogger<SigController> logger)
     {
+        _diagnosticFactory = diagnosticFactory;
         _appManager = appManager;
         _config = configuration;
         _logger = logger;
@@ -59,7 +62,35 @@ public class SigController : Controller
             await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
         }
     }
+    [HttpGet("debug")]
+    [HttpConnect("debug")]
+    public async Task DiagnosticConnect()
+    {
+        if (HttpContext.WebSockets.IsWebSocketRequest)
+        {
+            var tsc = new TaskCompletionSource();
+            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
+            using var session = new WaitForWebSocketSignalingHandler(
+                    await HttpContext.WebSockets.AcceptWebSocketAsync(),
+                    new WaitForWebSocketSignalingHandler.WaitFor(r => r.SafeGetString("type").ToLower() == "register",
+                        (sender, message) => _appManager.RegisterOrRenew(_diagnosticFactory.Wrappeds[sender], message.SafeGetString("id"),
+                            ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>(), false)
+                        , rawPeerTtlSource.Token),
+                    tsc, HostShutdown
+                )
+                ;
+            _diagnosticFactory.Wrap(session);
+            await _appManager.ListenExceptions(() => session.ListenAsync());
 
+
+            await tsc.Task;
+        }
+        else
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
+        }
+    }
     [HttpGet("")]
     [HttpConnect("")]
     public async Task StandardConnect()

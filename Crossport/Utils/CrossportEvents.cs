@@ -3,7 +3,8 @@
 public static class CrossportEvents
 {
     public static readonly EventId CrossportUndefinedException = new(650010, "Undefined Exception");
-
+    public static readonly EventId CrossportDiagnosticDebugMessage = new(610020, "Debug Message");
+    public static readonly EventId CrossportDiagnosticSignallingMessage = new(610021, "Debug Message");
     public static readonly EventId PeerCreated = new(620100, "Peer Created");
     public static readonly EventId PeerDead = new(630101, "Peer Dead");
     public static readonly EventId PeerReconnected = new(630102, "Peer Dead");

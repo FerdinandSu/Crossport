@@ -6,6 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<Version>0.2.0</Version>
+		<EnableSdkContainerSupport>true</EnableSdkContainerSupport>
 	</PropertyGroup>
 
 	<ItemGroup>

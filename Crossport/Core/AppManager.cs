@@ -115,6 +115,10 @@ public class AppManager
             _logger.LogCrossport(eid, "Npc {id} Illegal Signalling ({type}): {message}", e.Connection.Id, e.Type,
                 e.SignallingData.ToString());
         }
+        catch (OperationCanceledException)
+        {
+            // Task Canceled
+        }
         catch (Exception e)
         {
             _logger.LogError(CrossportEvents.CrossportUndefinedException, e,

@@ -185,7 +185,7 @@ public abstract class Peer
 
     private void ShutdownInternal()
     {
-        if (Status != PeerStatus.Lost) return;
+        if (Status is not PeerStatus.Lost) return;
         Status = PeerStatus.Dead;
         OnPeerDead?.Invoke(this);
         Dispose();
