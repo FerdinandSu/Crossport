@@ -33,15 +33,14 @@ public class SigController : Controller
 
     private CancellationToken HostShutdown { get; }
 
-    [HttpGet("{app}/{component}")]
-    [HttpConnect("{app}/{component}")]
+    [HttpGet("compatible/{app}/{component}")]
+    [HttpConnect("compatible/{app}/{component}")]
     public async Task CompatibleConnect([FromRoute] string app, [FromRoute] string component, [FromQuery] string id,
         [FromQuery] int capacity)
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             var tsc = new TaskCompletionSource();
-            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
             using var session = new WebSocketSignalingHandler(
                 await HttpContext.WebSockets.AcceptWebSocketAsync(), tsc, HostShutdown);
             var config = new CrossportConfig
@@ -62,24 +61,23 @@ public class SigController : Controller
             await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
         }
     }
-    [HttpGet("debug")]
-    [HttpConnect("debug")]
-    public async Task DiagnosticConnect()
+    [HttpGet("{app}/{component}")]
+    [HttpConnect("{app}/{component}")]
+    public async Task StandardConnect([FromRoute] string app, [FromRoute] string component, [FromQuery] string id,
+        [FromQuery] int capacity)
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             var tsc = new TaskCompletionSource();
-            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
-            using var session = new WaitForWebSocketSignalingHandler(
-                    await HttpContext.WebSockets.AcceptWebSocketAsync(),
-                    new WaitForWebSocketSignalingHandler.WaitFor(r => r.SafeGetString("type").ToLower() == "register",
-                        (sender, message) => _appManager.RegisterOrRenew(_diagnosticFactory.Wrappeds[sender], message.SafeGetString("id"),
-                            ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>(), false)
-                        , rawPeerTtlSource.Token),
-                    tsc, HostShutdown
-                )
-                ;
-            _diagnosticFactory.Wrap(session);
+            using var session = new WebSocketSignalingHandler(
+                await HttpContext.WebSockets.AcceptWebSocketAsync(), tsc, HostShutdown);
+            var config = new CrossportConfig
+            {
+                Application = app,
+                Component = component,
+                Capacity = capacity
+            };
+            await _appManager.RegisterOrRenew(session, id, config, false);
             await _appManager.ListenExceptions(() => session.ListenAsync());
 
 
@@ -91,23 +89,25 @@ public class SigController : Controller
             await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
         }
     }
-    [HttpGet("")]
-    [HttpConnect("")]
-    public async Task StandardConnect()
+
+    [HttpGet("debug/{app}/{component}")]
+    [HttpConnect("debug/{app}/{component}")]
+    public async Task DiagnosticConnect([FromRoute] string app, [FromRoute] string component, [FromQuery] string id,
+        [FromQuery] int capacity)
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             var tsc = new TaskCompletionSource();
-            using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
-            using var session = new WaitForWebSocketSignalingHandler(
-                    await HttpContext.WebSockets.AcceptWebSocketAsync(),
-                    new WaitForWebSocketSignalingHandler.WaitFor(r => r.SafeGetString("type").ToLower() == "register",
-                        (sender, message) => _appManager.RegisterOrRenew(sender, message.SafeGetString("id"),
-                            ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>(), false)
-                        , rawPeerTtlSource.Token),
-                    tsc, HostShutdown
-                )
-                ;
+            using var session = new WebSocketSignalingHandler(
+                await HttpContext.WebSockets.AcceptWebSocketAsync(), tsc, HostShutdown);
+            var wrapped = _diagnosticFactory.Wrap(session);
+            var config = new CrossportConfig
+            {
+                Application = app,
+                Component = component,
+                Capacity = capacity
+            };
+            await _appManager.RegisterOrRenew(wrapped, id, config, false);
             await _appManager.ListenExceptions(() => session.ListenAsync());
 
 
@@ -119,4 +119,33 @@ public class SigController : Controller
             await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
         }
     }
+
+    //[HttpGet("")]
+    //[HttpConnect("")]
+    //public async Task StandardConnect()
+    //{
+    //    if (HttpContext.WebSockets.IsWebSocketRequest)
+    //    {
+    //        var tsc = new TaskCompletionSource();
+    //        using var rawPeerTtlSource = new CancellationTokenSource(RawPeerLifetime);
+    //        using var session = new WaitForWebSocketSignalingHandler(
+    //                await HttpContext.WebSockets.AcceptWebSocketAsync(),
+    //                new WaitForWebSocketSignalingHandler.WaitFor(r => r.SafeGetString("type").ToLower() == "register",
+    //                    (sender, message) => _appManager.RegisterOrRenew(sender, message.SafeGetString("id"),
+    //                        ((JsonElement)message["data"]).DeserializeWeb<CrossportConfig>(), false)
+    //                    , rawPeerTtlSource.Token),
+    //                tsc, HostShutdown
+    //            )
+    //            ;
+    //        await _appManager.ListenExceptions(() => session.ListenAsync());
+
+
+    //        await tsc.Task;
+    //    }
+    //    else
+    //    {
+    //        HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+    //        await HttpContext.Response.WriteAsync("Only WebSocket Connections are allowed.", HostShutdown);
+    //    }
+    //}
 }
