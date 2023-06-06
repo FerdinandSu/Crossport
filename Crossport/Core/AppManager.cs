@@ -1,8 +1,11 @@
 ﻿using System.Collections.Concurrent;
+using System.Net.WebSockets;
 using Crossport.Core.Connecting;
 using Crossport.Core.Entities;
 using Crossport.Core.Signalling;
 using Crossport.Utils;
+using Ices.MetaCdn.Health;
+using Ices.MetaCdn.Remoting;
 
 namespace Crossport.Core;
 
@@ -38,21 +41,26 @@ public class AppManager
             peer.Reconnect(signaling, isCompatible);
 
             _logger.LogCrossport(CrossportEvents.PeerReconnected, "{app}/{comp}: {type} peer {id} reconnected successfully.",
-                config?.Application,config?.Component,peerType, connectionId);
+                config?.Application, config?.Component, peerType, connectionId);
 
             return;
         }
 
         if (config is not null)
         {
-            var app = AppComponents.GetOrAdd(new AppInfo(config), i => new AppComponent(i, OnGeneralConnectionEvent));
+            var app = AppComponents.GetOrAdd(new AppInfo(config), i =>
+            {
+                var app = new AppComponent(i, OnGeneralConnectionEvent);
+                app.OnHealthChanged += OnAppHealthChanged;
+                return app;
+            });
             if (config.Capacity == 0)
             {
                 var consumer = new ContentConsumer(signaling, peerId, config, isCompatible);
                 app.Register(consumer);
                 Peers[peerId] = consumer;
                 _logger.LogCrossport(CrossportEvents.PeerCreated, "{app}/{comp}: {type} consumer {id} created successfully.",
-                    config?.Application, config?.Component,peerType, connectionId);
+                    config?.Application, config?.Component, peerType, connectionId);
             }
             else
             {
@@ -82,6 +90,12 @@ public class AppManager
         }
 
         Peers[peerId].OnPeerDead += OnPeerDead;
+    }
+
+    private async void OnAppHealthChanged(AppComponent sender, HealthChange e)
+    {
+        await _healthListeners.SendAsync(Enum.GetName(e.Type) ?? e.Type.ToString(),
+            new AppHealth(sender.Info.Application, sender.Info.Component, e.Diff));
     }
 
     public async Task ListenExceptions(Func<Task> run)
@@ -167,4 +181,12 @@ public class AppManager
         _logger.LogCrossport(CrossportEvents.PeerDead, "Peer {id} is dead after {ttl} ms waiting for reconnection.",
             obj.Id, Peer.LostPeerLifetime);
     }
+
+    public void AddHealthListener(IRemoting remoting)
+    {
+        _logger.LogCrossport(CrossportEvents.HealthListenerOnline, CrossportEvents.HealthListenerOnline.Name);
+        _healthListeners.Add(remoting);
+    }
+    private readonly RemotingMux _healthListeners = new();
+
 }

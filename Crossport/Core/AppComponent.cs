@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using Crossport.Core.Connecting;
+using Ices.MetaCdn.Health;
 
 namespace Crossport.Core;
 
@@ -20,12 +21,46 @@ public class AppComponent
 {
     private readonly ConcurrentDictionary<ContentProvider, Cell> _cells = new();
     private readonly GeneralConnectionEventHandler _connectionEventCallback;
-    private readonly AppInfo _info;
+    public AppInfo Info{ get; }
     private readonly ConcurrentQueue<(ContentConsumer, NonPeerConnection)> _queuedConsumers = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private HealthStats _lastHealthStats=new();
+    private HealthStats ReportHealth()
+    {
+        var used= _cells.Sum(c=>c.Value.Consumers.Count);
+        var total = _cells.Sum(c => c.Key.Capacity);
+        var gray = _cells.Select(c => c.Key).Where(p => p.Status != PeerStatus.Lost).Sum(p => p.Capacity);
+        var pending=_queuedConsumers.Count;
+        total -= gray;
+        var free = total - used;
+        return new(free, total, pending, gray);
+    }
+    public delegate void AppComponentHealthChanged(AppComponent sender, HealthChange e);
+    public event AppComponentHealthChanged? OnHealthChanged;
 
+    private async Task UpdateHealth()
+    {
+        var newHealth=ReportHealth();
+        await _semaphore.WaitAsync();
+        var diff=newHealth- _lastHealthStats;
+        switch (diff.Evaluation)
+        {
+            case > 0:
+                OnHealthChanged?.Invoke(this, new(newHealth, diff, HealthEventType.LoadDecreased));
+                break;
+            case < 0:
+                OnHealthChanged?.Invoke(this, new(newHealth, diff, HealthEventType.LoadIncreased));
+                break;
+            case double.NaN:
+                OnHealthChanged?.Invoke(this, new(newHealth, diff, HealthEventType.NoProvider));
+                break;
+        }
+        _lastHealthStats=newHealth;
+        _semaphore.Release();
+    }
     public AppComponent(AppInfo info, GeneralConnectionEventHandler connectionEventCallback)
     {
-        _info = info;
+        Info = info;
         _connectionEventCallback = connectionEventCallback;
     }
 
@@ -40,7 +75,7 @@ public class AppComponent
         if (sender is not ContentConsumer consumer)
             throw new ArgumentException("Only ContentConsumer is allowed to create connection.", nameof(sender));
         var availableCell = _cells.Values.FirstOrDefault(c => c.IsAvailable);
-        var connection = new NonPeerConnection(_info, consumer, connectionId);
+        var connection = new NonPeerConnection(Info, consumer, connectionId);
         connection.OnDestroyed += Connection_OnDestroyed;
         connection.OnTimeout += Connection_OnTimeout;
         connection.OnStateChanged += Connection_OnStateChanged;
@@ -48,7 +83,7 @@ public class AppComponent
             await availableCell.Connect(consumer, connection);
         else
             _queuedConsumers.Enqueue((consumer, connection));
-
+        await UpdateHealth();
         await _connectionEventCallback(connection, ConnectionEventType.Created);
     }
 
@@ -69,7 +104,7 @@ public class AppComponent
         sender.OnTimeout -= Connection_OnTimeout;
         sender.OnStateChanged -= Connection_OnStateChanged;
         if (sender.Consumer.Status == PeerStatus.Dead) sender.Consumer.OnConnect -= Consumer_OnConnect;
-        
+        await UpdateHealth();
         await _connectionEventCallback(sender, ConnectionEventType.Destroyed);
     }
 
@@ -86,6 +121,7 @@ public class AppComponent
         }
 
         _cells[provider] = cell;
+        await UpdateHealth();
         return cell;
     }
 

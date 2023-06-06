@@ -44,7 +44,8 @@ public static class CrossportEvents
 
     public static readonly EventId NpcIllSigProviderAnswerToNonRequested =
         new(650216, "Provider Answer To Non-Requested Connection");
-
+    public static readonly EventId HealthListenerOnline =
+        new(620300, "A Health Listener is now Online");
     public static void LogCrossport(this ILogger logger, EventId eventId, string? message, params object?[] args)
     {
         logger.Log((LogLevel)((eventId.Id - 600000) / 10000), eventId, message, args);
