@@ -182,8 +182,8 @@ public class NonPeerConnection
     public async Task Destroy()
     {
         if (State is ConnectionState.Disconnected) return;
-        await (Provider?.SendAsync(new { type = "disconnect", connectionId = Id }) ?? Task.CompletedTask);
-        await Consumer.SendAsync(new { type = "disconnect", connectionId = _consumerIndicatedId });
+        _ = Provider?.SendAsync(new { type = "disconnect", connectionId = Id });
+        _ = Consumer.SendAsync(new { type = "disconnect", connectionId = _consumerIndicatedId });
         await (OnDestroyed?.Invoke(this) ?? Task.CompletedTask);
         State = ConnectionState.Disconnected;
         _setProviderLock.Dispose();

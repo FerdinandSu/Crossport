@@ -20,6 +20,22 @@ public class Cell
     public bool IsFull =>
         Provider.Capacity <= Consumers.Count;
 
+    public bool IsAvailable
+    {
+        get
+        {
+            if (IsFull) return false;
+            if (Provider.Status == PeerStatus.Dead)
+            {
+                OnProviderDead?.Invoke(this);
+                return false;
+            }
+
+            if (Provider.Status == PeerStatus.Lost) return false;
+            return true;
+        }
+    }
+
     public event ProviderDeadEventHandler? OnProviderDead;
 
     public async Task Connect(ContentConsumer consumer, NonPeerConnection connection)

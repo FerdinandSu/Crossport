@@ -37,8 +37,8 @@ public class AppManager
         {
             peer.Reconnect(signaling, isCompatible);
 
-            _logger.LogCrossport(CrossportEvents.PeerReconnected, "{type} peer {id} reconnected successfully.",
-                peerType, connectionId);
+            _logger.LogCrossport(CrossportEvents.PeerReconnected, "{app}/{comp}: {type} peer {id} reconnected successfully.",
+                config?.Application,config?.Component,peerType, connectionId);
 
             return;
         }
@@ -51,14 +51,14 @@ public class AppManager
                 var consumer = new ContentConsumer(signaling, peerId, config, isCompatible);
                 app.Register(consumer);
                 Peers[peerId] = consumer;
-                _logger.LogCrossport(CrossportEvents.PeerCreated, "{type} consumer {id} created successfully.",
-                    peerType, connectionId);
+                _logger.LogCrossport(CrossportEvents.PeerCreated, "{app}/{comp}: {type} consumer {id} created successfully.",
+                    config?.Application, config?.Component,peerType, connectionId);
             }
             else
             {
                 var provider = new ContentProvider(signaling, peerId, config, isCompatible);
                 _logger.LogCrossport(CrossportEvents.PeerCreated,
-                    "{type} provider peer {id} created successfully, capacity={cap}.",
+                    "{app}/{comp}: {type} provider peer {id} created successfully, capacity={cap}.", config?.Application, config?.Component,
                     peerType, connectionId, config.Capacity);
                 try
                 {

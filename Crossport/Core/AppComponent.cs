@@ -39,7 +39,7 @@ public class AppComponent
     {
         if (sender is not ContentConsumer consumer)
             throw new ArgumentException("Only ContentConsumer is allowed to create connection.", nameof(sender));
-        var availableCell = _cells.Values.FirstOrDefault(c => !c.IsFull);
+        var availableCell = _cells.Values.FirstOrDefault(c => c.IsAvailable);
         var connection = new NonPeerConnection(_info, consumer, connectionId);
         connection.OnDestroyed += Connection_OnDestroyed;
         connection.OnTimeout += Connection_OnTimeout;
@@ -69,6 +69,7 @@ public class AppComponent
         sender.OnTimeout -= Connection_OnTimeout;
         sender.OnStateChanged -= Connection_OnStateChanged;
         if (sender.Consumer.Status == PeerStatus.Dead) sender.Consumer.OnConnect -= Consumer_OnConnect;
+        
         await _connectionEventCallback(sender, ConnectionEventType.Destroyed);
     }
 
@@ -76,9 +77,11 @@ public class AppComponent
     {
         var cell = new Cell(provider);
         cell.OnProviderDead += Cell_OnProviderDead;
-        while (!cell.IsFull && _queuedConsumers.TryDequeue(out var tuple))
+        while (cell.IsAvailable && _queuedConsumers.TryDequeue(out var tuple))
         {
             var (consumer, connection) = tuple;
+            if (consumer.Status is not PeerStatus.Standard or PeerStatus.Compatible ||
+                connection.State == ConnectionState.Disconnected) continue;
             await cell.Connect(consumer, connection);
         }
 
@@ -89,5 +92,6 @@ public class AppComponent
     private void Cell_OnProviderDead(Cell sender)
     {
         _ = _cells.TryRemove(sender.Provider, out _);
+
     }
 }
